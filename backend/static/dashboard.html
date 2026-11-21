@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GymTracker Dashboard</title>
+<style>
+  /* ── Tokens ─────────────────────────────────────────────────────────────
+     Dark = the app's navy/violet theme. Chart series come from a CVD-validated
+     palette (checked against these exact surfaces). */
+  :root {
+    color-scheme: light;
+    --page: #f4f4f8;
+    --surface: #fcfcfb;
+    --surface-2: #efeff4;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #5b52e0;
+    --accent-wash: rgba(91, 82, 224, 0.10);
+    --single: #5b52e0;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --good: #0ca30c;
+    --good-text: #006300;
+    --bad-text: #b42f2f;
+    --hover-wash: rgba(11, 11, 11, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0f0f1a;
+      --surface: #1a1a2e;
+      --surface-2: #22223a;
+      --text: #ffffff;
+      --text-2: #c3c2d4;
+      --muted: #8c8ba3;
+      --grid: #2a2a44;
+      --baseline: #3b3b5c;
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #7b73ff;
+      --accent-wash: rgba(123, 115, 255, 0.16);
+      --single: #7b73ff;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --good: #0ca30c;
+      --good-text: #2fc42f;
+      --bad-text: #ff7a7a;
+      --hover-wash: rgba(255, 255, 255, 0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-2: #22223a;
+    --text: #ffffff;
+    --text-2: #c3c2d4;
+    --muted: #8c8ba3;
+    --grid: #2a2a44;
+    --baseline: #3b3b5c;
+    --border: rgba(255, 255, 255, 0.08);
+    --accent: #7b73ff;
+    --accent-wash: rgba(123, 115, 255, 0.16);
+    --single: #7b73ff;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good: #0ca30c;
+    --good-text: #2fc42f;
+    --bad-text: #ff7a7a;
+    --hover-wash: rgba(255, 255, 255, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  /* ── Header & filters ── */
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 20px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+  .brand h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .brand span { color: var(--muted); font-size: 13px; }
+  .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+  .seg button {
+    font: inherit; font-size: 13px; color: var(--text-2); background: none; border: 0;
+    padding: 6px 12px; border-radius: 7px; cursor: pointer;
+  }
+  .seg button:hover { background: var(--hover-wash); }
+  .seg button[aria-pressed="true"] { background: var(--accent-wash); color: var(--text); font-weight: 600; }
+  .icon-btn {
+    font: inherit; font-size: 13px; color: var(--text-2); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px; padding: 7px 12px; cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--surface-2); }
+  .status { color: var(--muted); font-size: 12px; width: 100%; }
+  .status.err { color: var(--bad-text); }
+
+  /* ── KPI tiles ── */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+  .tile.hero { grid-column: span 2; }
+  .tile .label { color: var(--text-2); font-size: 13px; }
+  .tile .value { font-size: 26px; font-weight: 650; margin-top: 4px; letter-spacing: -0.01em; }
+  .tile.hero .value { font-size: 48px; line-height: 1.1; }
+  .tile .value small { font-size: 0.5em; font-weight: 500; color: var(--text-2); margin-left: 3px; }
+  .tile .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .delta.good { color: var(--good-text); }
+  .delta.bad { color: var(--bad-text); }
+  @media (max-width: 560px) { .tile.hero { grid-column: span 1; } .tile.hero .value { font-size: 40px; } }
+
+  /* ── Chart cards ── */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px 12px; min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .card .desc { color: var(--muted); font-size: 12px; margin: 2px 0 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 6px; color: var(--text-2); font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend i.ring { background: var(--surface) !important; box-shadow: inset 0 0 0 2px var(--good); }
+  .legend i.empty { background: transparent !important; box-shadow: inset 0 0 0 1px var(--baseline); }
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .chart svg text.end { fill: var(--text); font-weight: 600; }
+  .empty-msg { color: var(--muted); font-size: 13px; padding: 48px 0; text-align: center; }
+
+  /* ── Gym calendar ── */
+  .cal-scroll { overflow-x: auto; padding-bottom: 4px; }
+  .cal { display: grid; grid-template-rows: repeat(7, 14px); grid-auto-flow: column; grid-auto-columns: 14px; gap: 3px; width: max-content; }
+  .cal div { border-radius: 3px; }
+  .cal .gym { background: var(--good); }
+  .cal .watch { box-shadow: inset 0 0 0 2px var(--good); }
+  .cal .rest { background: var(--grid); }
+  .cal .none { box-shadow: inset 0 0 0 1px var(--grid); }
+  .cal .pad { visibility: hidden; }
+
+  /* ── Table ── */
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--surface); }
+  th:first-child, td:first-child, td.txt, th.txt { text-align: left; }
+  td.txt { white-space: normal; min-width: 160px; color: var(--text-2); }
+  tbody tr:hover { background: var(--hover-wash); }
+  .dim { color: var(--muted); }
+
+  /* ── Tabs & toolbar ── */
+  .tabs { display: inline-flex; gap: 4px; }
+  .tabs a {
+    color: var(--text-2); text-decoration: none; font-size: 14px;
+    padding: 8px 14px; border-radius: 10px;
+  }
+  .tabs a:hover { background: var(--hover-wash); }
+  .tabs a[aria-current="page"] { background: var(--accent-wash); color: var(--text); font-weight: 600; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 16px; }
+  .toolbar .status { width: auto; }
+  .seg button:disabled { cursor: default; min-width: 120px; }
+  @media (max-width: 560px) {
+    .brand { width: 100%; }
+    .tabs a { padding: 8px 10px; }
+  }
+
+  /* ── Insights ── */
+  .streak-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 40px; margin-bottom: 16px; padding: 20px 22px; }
+  .streak-hero .label { color: var(--text-2); font-size: 13px; }
+  .streak-hero .big { font-size: 56px; font-weight: 650; line-height: 1.1; }
+  .streak-hero .big small { font-size: 18px; font-weight: 500; color: var(--text-2); margin-left: 6px; }
+  .pbs { display: flex; flex-wrap: wrap; gap: 12px 36px; }
+  .pbs .value { font-size: 24px; font-weight: 650; margin-top: 2px; }
+  .message { font-size: 16px; line-height: 1.55; margin: 6px 0 16px; }
+  .meter-row { margin-bottom: 14px; }
+  .meter-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+  .meter-head span:last-child { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .meter { height: 8px; border-radius: 4px; background: var(--accent-wash); overflow: hidden; }
+  .meter > div { height: 100%; border-radius: 4px; background: var(--accent); width: 0; transition: width 0.4s ease; }
+  .meter.good > div { background: var(--good); }
+  .meter.good { background: rgba(12, 163, 12, 0.16); }
+  .meter.warn > div { background: #fab219; }
+  .meter.warn { background: rgba(250, 178, 25, 0.18); }
+  .meter.serious > div { background: #ec835a; }
+  .meter.serious { background: rgba(236, 131, 90, 0.18); }
+  .mini-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+  .mini-stats .label { color: var(--text-2); font-size: 12px; }
+  .mini-stats .value { font-size: 18px; font-weight: 650; }
+  .achievements { list-style: none; margin: 4px 0 0; padding: 0; }
+  .achievements li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--grid); }
+  .achievements li:last-child { border-bottom: 0; }
+  .achievements li span:first-child { font-size: 20px; line-height: 1.2; }
+
+  /* ── AI Coach ── */
+  .chat { display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 480px; padding: 0; overflow: hidden; }
+  .chat-head .icon-btn { white-space: nowrap; }
+  .chat-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px 8px; border-bottom: 1px solid var(--grid); }
+  .messages { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: min(720px, 85%); padding: 10px 14px; border-radius: 14px; line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
+  .msg.bot { background: var(--surface-2); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.user { background: var(--accent); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .msg.err { background: transparent; border: 1px solid var(--bad-text); color: var(--bad-text); }
+  .msg p { margin: 0 0 8px; } .msg p:last-child { margin-bottom: 0; }
+  .msg ul, .msg ol { margin: 4px 0 8px; padding-left: 20px; }
+  .msg .time { display: block; font-size: 11px; opacity: 0.6; margin-top: 4px; }
+  .thinking { color: var(--muted); font-size: 13px; align-self: flex-start; }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 18px 12px; }
+  .suggestions button {
+    font: inherit; font-size: 13px; color: var(--text-2); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  }
+  .suggestions button:hover { color: var(--text); border-color: var(--accent); }
+  .composer { display: flex; gap: 10px; padding: 12px 18px 16px; border-top: 1px solid var(--grid); }
+  .composer textarea {
+    flex: 1; resize: none; font: inherit; color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; max-height: 140px;
+  }
+  .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .send { font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 12px; padding: 0 18px; cursor: pointer; }
+  .send:disabled { opacity: 0.5; cursor: default; }
+
+  .split { display: flex; gap: 2px; height: 12px; border-radius: 4px; overflow: hidden; }
+
+  /* ── Tooltip ── */
+  #tip {
+    position: fixed; z-index: 10; pointer-events: none; display: none;
+    background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 10px; font-size: 12px; min-width: 120px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+  #tip b { display: block; margin-bottom: 4px; }
+  #tip .row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  #tip .row span:first-child { color: var(--text-2); }
+  #tip i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><h1>GymTracker</h1><span>local time</span></div>
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a href="#dashboard" data-view="dashboard">Dashboard</a>
+      <a href="#insights" data-view="insights">Insights</a>
+      <a href="#coach" data-view="coach">AI Coach</a>
+    </nav>
+    <button class="icon-btn" id="theme" title="Switch light / dark">◐ Theme</button>
+  </header>
+
+  <main id="view-dashboard" class="view">
+  <div class="toolbar">
+    <div class="seg" id="range" role="group" aria-label="Date range">
+      <button data-days="7">7 days</button>
+      <button data-days="30">30 days</button>
+      <button data-days="90">90 days</button>
+      <button data-days="365">1 year</button>
+      <button data-days="all">All</button>
+    </div>
+    <button class="icon-btn" id="refresh" title="Reload data">↻ Refresh</button>
+    <div class="status" id="status">Loading…</div>
+  </div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="grid">
+    <div class="card"><h2>Weight</h2><p class="desc">Body weight, kg</p><div class="chart" id="c-weight"></div></div>
+    <div class="card"><h2>Waist</h2><p class="desc">Waist measurement, cm</p><div class="chart" id="c-waist"></div></div>
+    <div class="card"><h2>Body fat</h2><p class="desc">Vitafit scale estimate, % (track the trend)</p><div class="chart" id="c-fat"></div></div>
+    <div class="card"><h2>Fat vs lean mass</h2><p class="desc">kg · losing fat while keeping lean mass is the goal</p><div class="legend" id="l-mass"></div><div class="chart" id="c-mass"></div></div>
+    <div class="card wide"><h2>Body composition</h2><p class="desc" id="d-body">Latest Vitafit scale reading</p><div id="body-comp"></div></div>
+    <div class="card wide"><h2>Calories eaten</h2><p class="desc" id="d-cal">Per day, by meal (kcal)</p><div class="legend" id="l-cal"></div><div class="chart" id="c-cal"></div></div>
+    <div class="card"><h2>Steps</h2><p class="desc" id="d-steps">Galaxy Watch, per day</p><div class="chart" id="c-steps"></div></div>
+    <div class="card"><h2>Active calories burned</h2><p class="desc" id="d-active">Galaxy Watch, kcal per day</p><div class="chart" id="c-active"></div></div>
+    <div class="card"><h2>Sleep</h2><p class="desc" id="d-sleep">Hours asleep, night ending on each day</p><div class="chart" id="c-sleep"></div></div>
+    <div class="card"><h2>Heart rate</h2><p class="desc">Galaxy Watch, bpm</p><div class="legend" id="l-hr"></div><div class="chart" id="c-hr"></div></div>
+    <div class="card wide">
+      <h2>Gym consistency</h2><p class="desc">Each square is a day (rows Mon–Sun), last 12 months</p>
+      <div class="legend">
+        <span><i style="background:var(--good)"></i>Gym (logged)</span>
+        <span><i class="ring"></i>Workout on watch, gym not logged</span>
+        <span><i style="background:var(--grid)"></i>Logged, no gym</span>
+        <span><i class="empty"></i>Not logged</span>
+      </div>
+      <div class="cal-scroll"><div class="cal" id="cal"></div></div>
+    </div>
+    <div class="card wide">
+      <h2>Workouts</h2><p class="desc">From the Exercise tab · last 12 months</p>
+      <div id="workouts"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Daily log</h2><p class="desc">Every value behind the charts, newest first</p>
+    <div class="table-scroll"><table id="table"></table></div>
+  </section>
+  </main>
+
+  <!-- ── Insights (same data as the app's Insights screen) ── -->
+  <main id="view-insights" class="view" hidden>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Month">
+        <button id="m-prev" title="Previous month">‹</button>
+        <button id="m-label" aria-pressed="true" disabled>—</button>
+        <button id="m-next" title="Next month">›</button>
+      </div>
+      <div class="status" id="i-status"></div>
+    </div>
+
+    <section class="streak-hero card">
+      <div>
+        <div class="label">Current gym streak</div>
+        <div class="big" id="i-streak">—</div>
+      </div>
+      <div class="pbs">
+        <div><div class="label">Longest streak</div><div class="value" id="i-longest">—</div></div>
+        <div><div class="label">Total gym sessions</div><div class="value" id="i-total">—</div></div>
+        <div><div class="label">Last gym day</div><div class="value" id="i-last">—</div></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>This week</h2><p class="desc" id="i-week-range"></p>
+        <p class="message" id="i-week-msg"></p>
+        <div class="meter-row">
+          <div class="meter-head"><span>Performance score</span><span id="i-score-label"></span></div>
+          <div class="meter"><div id="i-score-bar"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="i-month-title">This month</h2><p class="desc" id="i-month-sub"></p>
+        <p class="message" id="i-month-msg"></p>
+        <div class="mini-stats" id="i-month-stats"></div>
+      </div>
+      <div class="card">
+        <h2>Achievements</h2><p class="desc">Highlights for the selected month</p>
+        <ul class="achievements" id="i-highlights"></ul>
+      </div>
+      <div class="card">
+        <h2>Weekly breakdown</h2><p class="desc">This week against simple daily targets</p>
+        <div id="i-breakdown"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── AI Coach (Groq, via the backend's /ai/chat) ── -->
+  <main id="view-coach" class="view" hidden>
+    <section class="card chat">
+      <div class="chat-head">
+        <div><h2>AI Coach</h2><p class="desc">Powered by Groq · knows your logs and Galaxy Watch data</p></div>
+        <button class="icon-btn" id="chat-clear">Clear chat</button>
+      </div>
+      <div class="messages" id="messages" aria-live="polite"></div>
+      <div class="suggestions" id="suggestions"></div>
+      <form class="composer" id="composer">
+        <textarea id="question" rows="1" placeholder="Ask about your fitness data…" aria-label="Question"></textarea>
+        <button type="submit" class="send" id="send">Send</button>
+      </form>
+    </section>
+  </main>
+</div>
+<div id="tip"></div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────────────────────
+// Served by the backend at /dashboard, so the API is same-origin. When the file
+// is opened directly (file://) fall back to the LXC address; ?api= overrides.
+const BASE = new URLSearchParams(location.search).get('api')
+  ?? (location.protocol.startsWith('http') ? '' : 'http://localhost:8000');
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;   // browser's time zone
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } },
+};
+
+// ── Dates (YYYY-MM-DD strings, arithmetic in UTC so DST never shifts a day) ──
+const todayStr = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+const toUTC = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const fromUTC = d => d.toISOString().slice(0, 10);
+const addDays = (s, n) => { const d = toUTC(s); d.setUTCDate(d.getUTCDate() + n); return fromUTC(d); };
+const daysBetween = (a, b) => Math.round((toUTC(b) - toUTC(a)) / 86400000);
+const mondayOf = s => { const d = toUTC(s); return addDays(s, -((d.getUTCDay() + 6) % 7)); };
+const fmtDay = s => toUTC(s).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const fmtLong = s => toUTC(s).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+// ── Number formatting ────────────────────────────────────────────────────────
+const nf0 = new Intl.NumberFormat('en-AU', { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat('en-AU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const compact = v => Math.abs(v) >= 10000 ? new Intl.NumberFormat('en-AU', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : nf0.format(v);
+const hm = h => `${Math.floor(h)}h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}m`;
+const avg = a => { const v = a.filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+async function api(path) {
+  const res = await fetch(BASE + path);
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  return res.json();
+}
+
+function parseWorkouts(json) {
+  if (!json) return [];
+  try { return JSON.parse(json); } catch { return []; }
+}
+
+/** One row per calendar day in [start, end], manual entry + watch data merged. */
+function buildDays(start, end, entries, watch) {
+  const e = new Map(entries.map(x => [x.date, x]));
+  const w = new Map(watch.map(x => [x.date, x]));
+  const rows = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    const en = e.get(d), wa = w.get(d);
+    const total = en ? (en.cal_breakfast || 0) + (en.cal_lunch || 0) + (en.cal_dinner || 0) + (en.cal_misc || 0) : null;
+    const logged = total > 0;
+    const workouts = parseWorkouts(wa?.exercises);
+    rows.push({
+      date: d,
+      logged: !!en,
+      gym: en?.gym_attended ?? null,
+      weight: en?.weight_kg ?? null,
+      waist: en?.waist_cm ?? null,
+      bodyFat: en?.body_fat_pct ?? null,
+      muscle: en?.muscle_pct ?? null,
+      fatKg: en?.body_fat_pct != null && en?.weight_kg != null ? en.weight_kg * en.body_fat_pct / 100 : null,
+      leanKg: en?.body_fat_pct != null && en?.weight_kg != null ? en.weight_kg * (1 - en.body_fat_pct / 100) : null,
+      mood: en?.mood_score ?? null,
+      notes: en?.notes ?? null,
+      cal: logged ? total : null,
+      protein: en?.protein_g ?? null,
+      calTarget: en?.calorie_target ?? null,
+      proteinTarget: en?.protein_target_g ?? null,
+      breakfast: logged ? en.cal_breakfast || 0 : null,
+      lunch: logged ? en.cal_lunch || 0 : null,
+      dinner: logged ? en.cal_dinner || 0 : null,
+      misc: logged ? en.cal_misc || 0 : null,
+      steps: wa?.steps ?? null,
+      distance: wa?.distance_km ?? null,
+      active: wa?.active_calories ?? null,
+      restingHr: wa?.resting_hr ?? null,
+      avgHr: wa?.avg_hr ?? null,
+      // Prefer watch sleep; fall back to the manually logged hours
+      sleep: wa?.sleep_minutes != null ? wa.sleep_minutes / 60 : (en?.sleep_hours ?? null),
+      workouts,
+    });
+  }
+  return rows;
+}
+
+/** Long ranges plot weekly averages so bars stay readable. */
+function weekly(rows, keys) {
+  const buckets = new Map();
+  for (const r of rows) {
+    const k = mondayOf(r.date);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(r);
+  }
+  return [...buckets].map(([date, rs]) => {
+    const out = { date, week: true };
+    for (const key of keys) {
+      const v = avg(rs.map(r => r[key]));
+      out[key] = v == null ? null : v;
+    }
+    return out;
+  });
+}
+
+// ── SVG chart ────────────────────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+
+function niceStep(range, count) {
+  const raw = range / count, p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+}
+
+function showTip(evt, html) {
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  const r = tip.getBoundingClientRect();
+  let x = evt.clientX + 14, y = evt.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = evt.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = evt.clientY - r.height - 14;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+const hideTip = () => { tip.style.display = 'none'; };
+
+/** Rect with 4px rounded top (data end), square at the baseline. */
+function barPath(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h));
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+
+/**
+ * kind: 'line' | 'bar' | 'stack'
+ * series: [{ key, label, color (css var) }]
+ * fmt: value → string; zero: y-axis starts at 0
+ */
+function drawChart(host, { kind, rows, series, fmt, zero = kind !== 'line', height = 220, refLine = null }) {
+  host.innerHTML = '';
+  const values = [];
+  for (const r of rows) {
+    if (kind === 'stack') {
+      const t = series.reduce((s, x) => s + (r[x.key] || 0), 0);
+      if (series.some(x => r[x.key] != null)) values.push(t);
+    } else {
+      for (const s of series) if (r[s.key] != null) values.push(r[s.key]);
+    }
+  }
+  if (!values.length) {
+    host.innerHTML = '<div class="empty-msg">No data in this range</div>';
+    return;
+  }
+
+  const W = host.clientWidth || 600, H = height;
+  const m = { l: 46, r: 14, t: 12, b: 26 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+
+  let lo = Math.min(...values), hi = Math.max(...values);
+  if (refLine) hi = Math.max(hi, refLine.value * 1.05);
+  if (zero) lo = Math.min(0, lo);
+  if (lo === hi) { hi += 1; if (!zero) lo -= 1; }
+  const step = niceStep(hi - lo, 4);
+  lo = Math.floor(lo / step) * step;
+  hi = Math.ceil(hi / step) * step;
+  const y = v => m.t + ph - ((v - lo) / (hi - lo)) * ph;
+
+  const n = rows.length, band = pw / n;
+  const xc = i => m.l + band * (i + 0.5);
+  const parts = [];
+
+  // Gridlines + y ticks
+  for (let v = lo; v <= hi + step / 2; v += step) {
+    const yy = Math.round(y(v)) + 0.5;
+    parts.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}" stroke="${v === lo && zero ? 'var(--baseline)' : 'var(--grid)'}" stroke-width="1"/>`);
+    parts.push(`<text x="${m.l - 8}" y="${yy + 4}" text-anchor="end">${step < 0.1 ? v.toFixed(2) : step < 1 ? nf1.format(v) : compact(v)}</text>`);
+  }
+  // X labels: ~one per 70px, at most 6
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.min(6, Math.floor(pw / 70)))));
+  for (let i = 0; i < n; i += every) {
+    parts.push(`<text x="${xc(i)}" y="${H - 6}" text-anchor="middle">${fmtDay(rows[i].date)}</text>`);
+  }
+
+  // Hover highlight (behind the marks)
+  parts.push(`<rect class="hl" x="0" y="${m.t}" width="0" height="${ph}" fill="var(--hover-wash)" visibility="hidden"/>`);
+  parts.push(`<line class="xh" x1="0" x2="0" y1="${m.t}" y2="${m.t + ph}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>`);
+
+  const bw = Math.max(1, Math.min(24, band - 2));
+  if (kind === 'bar') {
+    const s = series[0];
+    rows.forEach((r, i) => {
+      if (r[s.key] == null) return;
+      const top = y(r[s.key]), h = y(lo) - top;
+      parts.push(`<path d="${barPath(xc(i) - bw / 2, top, bw, h, 4)}" fill="var(${s.color})"/>`);
+    });
+  } else if (kind === 'stack') {
+    rows.forEach((r, i) => {
+      let acc = 0;
+      const segs = series.filter(s => (r[s.key] || 0) > 0);
+      segs.forEach((s, j) => {
+        const v = r[s.key];
+        const y0 = y(acc), y1 = y(acc + v);
+        acc += v;
+        const gap = j > 0 ? 2 : 0; // 2px surface gap between segments
+        const h = Math.max(0, y0 - y1 - gap);
+        const d = j === segs.length - 1
+          ? barPath(xc(i) - bw / 2, y1, bw, h, 4)
+          : `M${xc(i) - bw / 2},${y1}h${bw}v${h}h${-bw}Z`;
+        parts.push(`<path d="${d}" fill="var(${s.color})"/>`);
+      });
+    });
+  } else {
+    for (const s of series) {
+      const pts = rows.map((r, i) => r[s.key] == null ? null : [xc(i), y(r[s.key]), r[s.key]]).filter(Boolean);
+      if (!pts.length) continue;
+      parts.push(`<path d="M${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L')}" fill="none" stroke="var(${s.color})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+      if (pts.length <= 45) {
+        for (const p of pts) parts.push(`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(${s.color})" stroke="var(--surface)" stroke-width="2"/>`);
+      }
+      // Direct label on the latest value only
+      if (series.length === 1) {
+        const last = pts[pts.length - 1];
+        parts.push(`<text class="end" x="${last[0]}" y="${last[1] - 10}" text-anchor="end">${fmt(last[2])}</text>`);
+      }
+    }
+  }
+
+  // Reference line (e.g. calorie target), drawn over the bars with its label
+  if (refLine) {
+    const ry = Math.round(y(refLine.value)) + 0.5;
+    parts.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${ry}" y2="${ry}" stroke="var(--text-2)" stroke-width="1.5"/>`);
+    parts.push(`<text class="end" x="${W - m.r}" y="${ry - 6}" text-anchor="end">${refLine.label}</text>`);
+  }
+
+  parts.push(`<rect class="hit" x="${m.l}" y="0" width="${pw}" height="${H}" fill="transparent"/>`);
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Chart; values are in the Daily log table below">${parts.join('')}</svg>`;
+
+  const svg = host.querySelector('svg');
+  const hl = svg.querySelector('.hl'), xh = svg.querySelector('.xh');
+  const hit = svg.querySelector('.hit');
+  hit.addEventListener('pointermove', evt => {
+    const box = svg.getBoundingClientRect();
+    const mx = (evt.clientX - box.left) * (W / box.width);
+    const i = Math.max(0, Math.min(n - 1, Math.floor((mx - m.l) / band)));
+    const r = rows[i];
+    if (kind === 'line') {
+      xh.setAttribute('x1', xc(i)); xh.setAttribute('x2', xc(i)); xh.setAttribute('visibility', 'visible');
+    } else {
+      hl.setAttribute('x', m.l + band * i); hl.setAttribute('width', band); hl.setAttribute('visibility', 'visible');
+    }
+    const title = r.week ? `Week of ${fmtDay(r.date)} · daily avg` : fmtLong(r.date);
+    let rowsHtml = series.slice().reverse().map(s =>
+      `<div class="row"><span><i style="background:var(${s.color})"></i>${s.label}</span><span>${r[s.key] == null ? '—' : fmt(r[s.key])}</span></div>`
+    ).join('');
+    if (kind === 'stack' && series.some(s => r[s.key] != null)) {
+      rowsHtml += `<div class="row"><span>Total</span><span><b style="display:inline">${fmt(series.reduce((t, s) => t + (r[s.key] || 0), 0))}</b></span></div>`;
+    }
+    showTip(evt, `<b>${title}</b>${rowsHtml}`);
+  });
+  hit.addEventListener('pointerleave', () => {
+    hideTip(); hl.setAttribute('visibility', 'hidden'); xh.setAttribute('visibility', 'hidden');
+  });
+}
+
+function legend(el, series) {
+  el.innerHTML = series.map(s => `<span><i style="background:var(${s.color})"></i>${s.label}</span>`).join('');
+}
+
+// ── KPI tiles ────────────────────────────────────────────────────────────────
+function deltaHtml(change, unit, lowerIsGood = true) {
+  if (change == null || Math.abs(change) < 0.05) return '<span class="dim">no change</span>';
+  const good = lowerIsGood ? change < 0 : change > 0;
+  return `<span class="delta ${good ? 'good' : 'bad'}">${change < 0 ? '▼' : '▲'} ${nf1.format(Math.abs(change))} ${unit}</span>`;
+}
+
+function renderKpis(rows, streak, rangeLabel) {
+  const weights = rows.filter(r => r.weight != null);
+  const waists = rows.filter(r => r.waist != null);
+  const logged = rows.filter(r => r.logged);
+  const gymDays = rows.filter(r => r.gym).length;
+  const wFirst = weights[0]?.weight, wLast = weights.at(-1)?.weight;
+  const cFirst = waists[0]?.waist, cLast = waists.at(-1)?.waist;
+  const fats = rows.filter(r => r.bodyFat != null);
+  const fFirst = fats[0]?.bodyFat, fLast = fats.at(-1)?.bodyFat;
+  const avgCal = avg(rows.map(r => r.cal));
+  const avgProtein = avg(rows.map(r => r.protein));
+  const proteinTarget = rows.map(r => r.proteinTarget).filter(v => v != null).at(-1);
+  const proteinDays = rows.filter(r => r.protein != null).length;
+  const proteinHit = rows.filter(r => r.protein != null && r.proteinTarget && r.protein >= r.proteinTarget).length;
+  const avgSteps = avg(rows.map(r => r.steps));
+  const avgSleep = avg(rows.map(r => r.sleep));
+  const avgRhr = avg(rows.map(r => r.restingHr));
+
+  const tile = (label, value, sub, cls = '') =>
+    `<div class="tile ${cls}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+
+  document.getElementById('kpis').innerHTML = [
+    tile('Weight', wLast != null ? `${nf1.format(wLast)}<small>kg</small>` : '—',
+      weights.length >= 2 ? `${deltaHtml(wLast - wFirst, 'kg')} · ${rangeLabel}` : 'Log weight to see a trend', 'hero'),
+    tile('Gym days', `${gymDays}<small>/ ${logged.length} logged</small>`,
+      streak ? `Current streak ${streak.current_streak} · best ${streak.longest_streak}` : rangeLabel),
+    goalTile(),
+    tile('Waist', cLast != null ? `${nf1.format(cLast)}<small>cm</small>` : '—',
+      [waists.length >= 2 ? deltaHtml(cLast - cFirst, 'cm') : '', whtrHtml(cLast)].filter(Boolean).join(' · ') || rangeLabel),
+    tile('Body fat', fLast != null ? `${nf1.format(fLast)}<small>%</small>` : '—',
+      fats.length >= 2 ? deltaHtml(fLast - fFirst, '%') : 'Vitafit scale'),
+    tile('Calories eaten', avgCal != null ? `${nf0.format(avgCal)}<small>kcal/day</small>` : '—', calorieSub(rows)),
+    tile('Protein', avgProtein != null ? `${nf0.format(avgProtein)}<small>g/day</small>` : '—',
+      proteinTarget ? `Target ${nf0.format(proteinTarget)} g · ${proteinHit} of ${proteinDays} days hit` : 'Average on logged days'),
+    tile('Steps', avgSteps != null ? `${nf0.format(avgSteps)}<small>/day</small>` : '—', 'Average · Galaxy Watch'),
+    tile('Sleep', avgSleep != null ? hm(avgSleep) : '—', 'Average per night'),
+    tile('Resting HR', avgRhr != null ? `${nf0.format(avgRhr)}<small>bpm</small>` : '—', 'Average · Galaxy Watch'),
+  ].join('');
+}
+
+// ── Goal + body composition ──────────────────────────────────────────────────
+/** Waist-to-height: < 0.5 healthy, 0.5–0.6 increased risk, ≥ 0.6 high risk. */
+function whtrHtml(waistCm) {
+  if (waistCm == null || !state.profile.height_cm) return '';
+  const r = waistCm / state.profile.height_cm;
+  const [cls, icon, word] = r < 0.5 ? ['good', '●', 'healthy'] : r < 0.6 ? ['bad', '▲', 'increased risk'] : ['bad', '▲', 'high risk'];
+  return `<span class="delta ${cls}">${icon} WHtR ${r.toFixed(2)} ${word}</span>`;
+}
+
+/** "12 of 20 days under 2,300 · avg 180 under" (or the plain average without a target). */
+function calorieSub(rows) {
+  const t = rows.filter(r => r.cal != null && r.calTarget);
+  if (!t.length) return 'Average on logged days';
+  const under = t.filter(r => r.cal <= r.calTarget).length;
+  const gap = avg(t.map(r => r.calTarget - r.cal));
+  const cls = gap >= 0 ? 'good' : 'bad';
+  return `${under} of ${t.length} days under target · <span class="delta ${cls}">${gap >= 0 ? '●' : '▲'} avg ${nf0.format(Math.abs(gap))} ${gap >= 0 ? 'under' : 'over'}</span>`;
+}
+
+function goalTile() {
+  const target = state.profile.target_weight_kg;
+  if (!target) return `<div class="tile"><div class="label">Goal</div><div class="value">—</div><div class="sub">Set TARGET_WEIGHT_KG in the server .env</div></div>`;
+  const now = state.body.latest?.weight_kg, start = state.body.start?.weight_kg;
+  if (now == null) return `<div class="tile"><div class="label">Goal · ${nf0.format(target)} kg</div><div class="value">—</div><div class="sub">Log weight to track progress</div></div>`;
+  const toGo = now - target;
+  const span = (start ?? now) - target;
+  const progress = toGo <= 0 ? 1 : span > 0 ? Math.max(0, Math.min(1, (start - now) / span)) : 0;
+  return `<div class="tile"><div class="label">Goal · ${nf0.format(target)} kg</div>` +
+    `<div class="value">${toGo <= 0 ? 'Reached 🎉' : `${nf1.format(toGo)}<small>kg to go</small>`}</div>` +
+    `<div class="meter good" style="margin-top:8px" role="meter" aria-label="Progress to goal" aria-valuenow="${Math.round(progress * 100)}" aria-valuemin="0" aria-valuemax="100"><div style="width:${progress * 100}%"></div></div>` +
+    `<div class="sub">${start != null && start > now ? `${nf1.format(start - now)} kg lost since ${fmtLong(state.body.start.date)} · ` : ''}${Math.round(progress * 100)}%</div></div>`;
+}
+
+function renderBody() {
+  const el = document.getElementById('body-comp');
+  const c = state.body.comp;
+  if (!c) {
+    el.innerHTML = '<div class="empty-msg">Weigh in with the Vitafit scale in the app to see body composition.</div>';
+    return;
+  }
+  document.getElementById('d-body').textContent = `Latest Vitafit scale reading · ${fmtLong(c.date)} · estimates, follow the trend`;
+  const w = c.weight_kg, fatKg = w * c.body_fat_pct / 100, lean = w - fatKg;
+  const pct = v => v == null ? '—' : `${nf1.format(v)}%`;
+  const kg = v => v == null ? '—' : `${nf1.format(v)} kg`;
+  const muscleMass = c.bone_kg != null ? (lean - c.bone_kg) / w * 100 : null;
+  const protein = c.bone_kg != null && c.water_pct != null ? (lean - w * c.water_pct / 100 - c.bone_kg) / w * 100 : null;
+  const stats = [
+    ['Weight', kg(w)], ['Body fat', pct(c.body_fat_pct)], ['Fat mass', kg(fatKg)], ['Lean mass', kg(lean)],
+    ['BMI', state.profile.height_cm ? nf1.format(w / (state.profile.height_cm / 100) ** 2) : '—'], ['Muscle mass', pct(muscleMass)],
+    ['Skeletal muscle', pct(c.muscle_pct)], ['Body water', pct(c.water_pct)], ['Protein', pct(protein)],
+    ['Bone mass', kg(c.bone_kg)], ['BMR', c.bmr_kcal == null ? '—' : `${nf0.format(c.bmr_kcal)} kcal`],
+  ];
+  el.innerHTML =
+    `<div class="split" role="img" aria-label="Fat ${nf1.format(fatKg)} kg, lean ${nf1.format(lean)} kg">` +
+    `<div style="flex:${fatKg};background:var(--s2)"></div><div style="flex:${lean};background:var(--s1)"></div></div>` +
+    `<div class="legend" style="margin-top:8px"><span><i style="background:var(--s2)"></i>Fat ${kg(fatKg)}</span><span><i style="background:var(--s1)"></i>Lean ${kg(lean)}</span></div>` +
+    `<div class="mini-stats" style="margin-top:12px">${stats.map(([l, v]) => `<div><div class="label">${l}</div><div class="value">${v}</div></div>`).join('')}</div>` +
+    (state.body.waist ? `<p class="desc" style="margin-top:12px">${whtrHtml(state.body.waist.waist_cm)} · waist ${nf1.format(state.body.waist.waist_cm)} cm on ${fmtDay(state.body.waist.date)} — belly-fat indicator, aim below 0.50</p>` : '');
+}
+
+// ── Workouts (Exercise tab) ──────────────────────────────────────────────────
+function renderWorkouts() {
+  const el = document.getElementById('workouts');
+  const sessions = [...state.workouts].sort((a, b) => (b.date + b.plan_day).localeCompare(a.date + a.plan_day));
+  if (!sessions.length) {
+    el.innerHTML = '<div class="empty-msg">No workouts yet. Log one in the app\'s Exercise tab.</div>';
+    return;
+  }
+  const filled = s => (s.sets || []).filter(x => x.reps != null || x.weight_kg != null);
+  const volume = w => (w.exercises || []).reduce((t, e) =>
+    t + filled(e).reduce((u, s) => u + (s.weight_kg || 0) * (s.reps || 0), 0), 0);
+
+  // Best set (heaviest, then most reps) per exercise, plus the latest one
+  const lifts = new Map();
+  for (const w of [...sessions].reverse()) {
+    for (const e of w.exercises || []) {
+      for (const s of filled(e)) {
+        const cur = lifts.get(e.id) || { name: e.name, best: null, last: null };
+        if (!cur.best || (s.weight_kg || 0) > (cur.best.weight_kg || 0) ||
+            ((s.weight_kg || 0) === (cur.best.weight_kg || 0) && (s.reps || 0) > (cur.best.reps || 0))) {
+          cur.best = { ...s, date: w.date };
+        }
+        cur.last = { ...s, date: w.date };
+        lifts.set(e.id, cur);
+      }
+    }
+  }
+  const setText = s => s ? `${s.weight_kg != null ? `${nf1.format(s.weight_kg).replace(/\.0$/, '')} kg × ` : ''}${s.reps ?? '?'}` : '';
+
+  const sessionRows = sessions.slice(0, 12).map(w => {
+    const done = (w.exercises || []).filter(e => e.done).length;
+    const tm = w.treadmill || {};
+    const tmText = tm.done ? [tm.minutes ? `${nf0.format(tm.minutes)} min` : '✓', tm.speed_kmh ? `${tm.speed_kmh} km/h` : '', tm.incline_pct ? `${tm.incline_pct}%` : ''].filter(Boolean).join(' · ') : '';
+    const vol = volume(w);
+    return `<tr><td>${fmtLong(w.date)}</td><td class="txt">Day ${w.plan_day} · ${esc(w.title || '')}${w.finished_at ? '' : ' <span class="dim">(unfinished)</span>'}</td>` +
+      `<td>${done} / ${(w.exercises || []).length}</td><td>${vol ? nf0.format(vol) : ''}</td><td>${esc(tmText)}</td></tr>`;
+  }).join('');
+
+  const liftRows = [...lifts.values()].sort((a, b) => a.name.localeCompare(b.name)).map(l =>
+    `<tr><td class="txt">${esc(l.name)}</td><td>${setText(l.best)}</td><td class="dim">${fmtDay(l.best.date)}</td><td>${setText(l.last)}</td></tr>`
+  ).join('');
+
+  el.innerHTML =
+    `<div class="table-scroll"><table><thead><tr><th>Date</th><th class="txt">Session</th><th>Exercises</th><th>Volume kg</th><th>Treadmill</th></tr></thead><tbody>${sessionRows}</tbody></table></div>` +
+    (liftRows ? `<h2 style="margin-top:18px">Best lifts</h2><p class="desc">Heaviest set per exercise, and your latest</p>` +
+      `<div class="table-scroll"><table><thead><tr><th class="txt">Exercise</th><th>Best</th><th>When</th><th>Latest</th></tr></thead><tbody>${liftRows}</tbody></table></div>` : '');
+}
+
+// ── Gym calendar ─────────────────────────────────────────────────────────────
+function renderCalendar(rows) {
+  const recent = rows.slice(-371);
+  const el = document.getElementById('cal');
+  if (!recent.length) { el.innerHTML = ''; return; }
+  const pad = (toUTC(recent[0].date).getUTCDay() + 6) % 7; // Monday-first rows
+  const cells = Array.from({ length: pad }, () => '<div class="pad"></div>');
+  for (const r of recent) {
+    const cls = r.gym ? 'gym' : r.workouts.length ? 'watch' : r.logged ? 'rest' : 'none';
+    const label = { gym: 'Gym day', watch: 'Workout on watch (gym not logged)', rest: 'Logged, no gym', none: 'Not logged' }[cls];
+    const w = r.workouts.map(x => `${x.title || x.type} ${x.minutes}m`).join(', ');
+    cells.push(`<div class="${cls}" data-tip="${esc(`<b>${fmtLong(r.date)}</b>${label}${w ? '<br>' + esc(w) : ''}`)}"></div>`);
+  }
+  el.innerHTML = cells.join('');
+}
+document.getElementById('cal').addEventListener('pointermove', evt => {
+  const t = evt.target.dataset?.tip;
+  t ? showTip(evt, t) : hideTip();
+});
+document.getElementById('cal').addEventListener('pointerleave', hideTip);
+
+// ── Table ────────────────────────────────────────────────────────────────────
+function renderTable(rows) {
+  const cols = [
+    ['Date', r => fmtLong(r.date)],
+    ['Gym', r => r.gym == null ? '' : r.gym ? '✓ Yes' : 'No'],
+    ['Weight kg', r => r.weight == null ? '' : nf1.format(r.weight)],
+    ['Waist cm', r => r.waist == null ? '' : nf1.format(r.waist)],
+    ['Body fat', r => r.bodyFat == null ? '' : `${nf1.format(r.bodyFat)}%`],
+    ['Muscle', r => r.muscle == null ? '' : `${nf1.format(r.muscle)}%`],
+    ['Fat / lean kg', r => r.fatKg == null ? '' : `${nf1.format(r.fatKg)} / ${nf1.format(r.leanKg)}`],
+    ['Calories', r => r.cal == null ? '' : nf0.format(r.cal)],
+    ['vs target', r => r.cal == null || !r.calTarget ? '' : (r.cal <= r.calTarget ? `✓ ${nf0.format(r.calTarget - r.cal)} under` : `▲ ${nf0.format(r.cal - r.calTarget)} over`)],
+    ['Protein g', r => r.protein == null ? '' : nf0.format(r.protein)],
+    ['B / L / D / Misc', r => r.cal == null ? '' : [r.breakfast, r.lunch, r.dinner, r.misc].map(v => nf0.format(v)).join(' / ')],
+    ['Mood', r => r.mood == null ? '' : `${r.mood}/5`],
+    ['Steps', r => r.steps == null ? '' : nf0.format(r.steps)],
+    ['Distance km', r => r.distance == null ? '' : nf1.format(r.distance)],
+    ['Active kcal', r => r.active == null ? '' : nf0.format(r.active)],
+    ['Sleep', r => r.sleep == null ? '' : hm(r.sleep)],
+    ['Resting HR', r => r.restingHr == null ? '' : r.restingHr],
+    ['Avg HR', r => r.avgHr == null ? '' : r.avgHr],
+    ['Workouts (watch)', r => r.workouts.map(x => `${x.title || x.type} ${x.minutes}m`).join(', '), 'txt'],
+    ['Notes', r => r.notes || '', 'txt'],
+  ];
+  const shown = rows.filter(r => r.logged || r.steps != null || r.sleep != null).reverse();
+  document.getElementById('table').innerHTML =
+    `<thead><tr>${cols.map(([h, , c]) => `<th class="${c || ''}">${h}</th>`).join('')}</tr></thead>` +
+    `<tbody>${shown.length ? shown.map(r => `<tr>${cols.map(([, f, c]) => `<td class="${c || ''}">${esc(f(r))}</td>`).join('')}</tr>`).join('')
+      : `<tr><td colspan="${cols.length}" class="dim">No data in this range</td></tr>`}</tbody>`;
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+const MEALS = [
+  { key: 'breakfast', label: 'Breakfast', color: '--s1' },
+  { key: 'lunch', label: 'Lunch', color: '--s2' },
+  { key: 'dinner', label: 'Dinner', color: '--s3' },
+  { key: 'misc', label: 'Misc / snacks', color: '--s4' },
+];
+const MASS = [
+  { key: 'leanKg', label: 'Lean mass', color: '--s1' },
+  { key: 'fatKg', label: 'Fat mass', color: '--s2' },
+];
+const HR = [
+  { key: 'restingHr', label: 'Resting', color: '--s1' },
+  { key: 'avgHr', label: 'Daily average', color: '--s2' },
+];
+
+let state = { range: store.get('range') || '30', rows: [], year: [], streak: null, profile: {}, body: {}, workouts: [] };
+
+function drawAll() {
+  const { rows, streak, range } = state;
+  const rangeLabel = range === 'all' ? 'all time' : `last ${range} days`;
+  const useWeeks = rows.length > 120;
+  const bars = useWeeks
+    ? weekly(rows, ['breakfast', 'lunch', 'dinner', 'misc', 'steps', 'active', 'sleep', 'restingHr', 'avgHr', 'weight', 'waist'])
+    : rows;
+  const per = useWeeks ? 'Weekly average of daily values' : null;
+  document.getElementById('d-cal').textContent = per ? `${per}, by meal (kcal)` : 'Per day, by meal (kcal)';
+  document.getElementById('d-steps').textContent = per ? `${per} · Galaxy Watch` : 'Galaxy Watch, per day';
+  document.getElementById('d-active').textContent = per ? `${per} · kcal` : 'Galaxy Watch, kcal per day';
+  document.getElementById('d-sleep').textContent = per ? `${per} · hours asleep` : 'Hours asleep, night ending on each day';
+
+  renderKpis(rows, streak, rangeLabel);
+  drawChart(document.getElementById('c-weight'), { kind: 'line', rows, series: [{ key: 'weight', label: 'Weight', color: '--single' }], fmt: v => `${nf1.format(v)} kg` });
+  drawChart(document.getElementById('c-waist'), { kind: 'line', rows, series: [{ key: 'waist', label: 'Waist', color: '--single' }], fmt: v => `${nf1.format(v)} cm` });
+  drawChart(document.getElementById('c-fat'), { kind: 'line', rows, series: [{ key: 'bodyFat', label: 'Body fat', color: '--single' }], fmt: v => `${nf1.format(v)}%` });
+  legend(document.getElementById('l-mass'), MASS);
+  drawChart(document.getElementById('c-mass'), { kind: 'line', rows, series: MASS, fmt: v => `${nf1.format(v)} kg` });
+  renderBody();
+  renderWorkouts();
+  legend(document.getElementById('l-cal'), MEALS);
+  const calTarget = rows.map(r => r.calTarget).filter(v => v != null).at(-1);
+  drawChart(document.getElementById('c-cal'), { kind: 'stack', rows: bars, series: MEALS, fmt: v => `${nf0.format(v)} kcal`, height: 240,
+    refLine: calTarget ? { value: calTarget, label: `Target ${nf0.format(calTarget)}` } : null });
+  drawChart(document.getElementById('c-steps'), { kind: 'bar', rows: bars, series: [{ key: 'steps', label: 'Steps', color: '--single' }], fmt: v => nf0.format(v) });
+  drawChart(document.getElementById('c-active'), { kind: 'bar', rows: bars, series: [{ key: 'active', label: 'Active', color: '--single' }], fmt: v => `${nf0.format(v)} kcal` });
+  drawChart(document.getElementById('c-sleep'), { kind: 'bar', rows: bars, series: [{ key: 'sleep', label: 'Sleep', color: '--single' }], fmt: hm });
+  legend(document.getElementById('l-hr'), HR);
+  drawChart(document.getElementById('c-hr'), { kind: 'line', rows: useWeeks ? bars : rows, series: HR, fmt: v => `${nf0.format(v)} bpm` });
+  renderCalendar(state.year);
+  renderTable(rows);
+}
+
+async function load() {
+  const status = document.getElementById('status');
+  status.className = 'status';
+  status.textContent = 'Loading…';
+  document.querySelectorAll('#range button').forEach(b => b.setAttribute('aria-pressed', b.dataset.days === state.range));
+
+  const end = todayStr();
+  const start = state.range === 'all' ? null : addDays(end, -(Number(state.range) - 1));
+  // Always fetch at least a year so the gym calendar is full on short ranges
+  const yearStart = addDays(end, -364);
+  const fetchStart = start && start < yearStart ? start : (start ? yearStart : null);
+  const q = fetchStart ? `?start=${fetchStart}&end=${end}` : `?end=${end}`;
+  try {
+    const [entries, watch, streak] = await Promise.all([
+      api(`/entries/?end=${end}`), // full history: needed for goal start + latest body reading
+      api(`/watch/${q}`),
+      api('/analytics/streak').catch(() => null),
+    ]);
+    state.workouts = (await api(`/workouts/?start=${yearStart}&end=${end}`).catch(() => []))
+      .map(w => { try { return { ...w, ...JSON.parse(w.data) }; } catch { return null; } })
+      .filter(Boolean);
+    state.profile = await api('/profile').catch(() => state.profile);
+    const withW = entries.filter(e => e.weight_kg != null);
+    state.body = {
+      start: withW[0] ?? null,
+      latest: withW.at(-1) ?? null,
+      comp: entries.filter(e => e.body_fat_pct != null && e.weight_kg != null).at(-1) ?? null,
+      waist: entries.filter(e => e.waist_cm != null).at(-1) ?? null,
+    };
+    const first = fetchStart ?? [...entries, ...watch].map(x => x.date).sort()[0] ?? end;
+    const all = buildDays(first, end, entries, watch);
+    state.rows = start ? all.filter(r => r.date >= start) : all;
+    state.year = all.filter(r => r.date >= yearStart);
+    state.streak = streak;
+    drawAll();
+    status.textContent = `Updated ${new Date().toLocaleTimeString('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit' })} · ${state.rows.filter(r => r.logged).length} log entries, ${state.rows.filter(r => r.steps != null || r.sleep != null).length} watch days in range`;
+  } catch (err) {
+    status.className = 'status err';
+    status.textContent = `Couldn't reach the GymTracker server (${err.message}). Is the VPN connected?`;
+  }
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+document.getElementById('range').addEventListener('click', e => {
+  const days = e.target.closest('button')?.dataset.days;
+  if (!days) return;
+  state.range = days;
+  store.set('range', days);
+  load();
+});
+document.getElementById('refresh').addEventListener('click', load);
+
+const savedTheme = store.get('theme');
+if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+document.getElementById('theme').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  const next = dark ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  store.set('theme', next);
+});
+
+let resizeTimer;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => state.rows.length && drawAll(), 150);
+}).observe(document.querySelector('.grid'));
+
+// ── Insights (mirrors the app's Insights screen) ─────────────────────────────
+const monthOf = s => s.slice(0, 7);
+const shiftMonth = (ym, n) => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+};
+const fmtMonth = ym => new Date(ym + '-01T00:00:00Z').toLocaleDateString('en-AU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+let insightMonth = monthOf(todayStr());
+
+function meter(label, valueText, fraction, cls = '') {
+  const pct = Math.max(0, Math.min(1, fraction || 0)) * 100;
+  return `<div class="meter-row"><div class="meter-head"><span>${label}</span><span>${valueText}</span></div>` +
+    `<div class="meter ${cls}" role="meter" aria-label="${esc(label)}" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><div style="width:${pct}%"></div></div></div>`;
+}
+
+async function loadInsights() {
+  const status = document.getElementById('i-status');
+  status.className = 'status';
+  status.textContent = 'Loading…';
+  const today = todayStr();
+  document.getElementById('m-label').textContent = fmtMonth(insightMonth);
+  document.getElementById('m-next').disabled = insightMonth >= monthOf(today);
+
+  try {
+    const [streak, weekly, monthly] = await Promise.all([
+      api('/analytics/streak'),
+      api(`/analytics/weekly?date=${today}`),
+      api(`/analytics/monthly?month=${insightMonth}`),
+    ]);
+    const weekWatch = await api(`/watch/?start=${weekly.week_start}&end=${weekly.week_end}`).catch(() => []);
+
+    // Streak hero
+    const s = streak.current_streak;
+    document.getElementById('i-streak').innerHTML = `${s}<small>${s === 1 ? 'day' : 'days'}${s >= 3 ? ' 🔥' : ''}</small>`;
+    document.getElementById('i-longest').textContent = `${streak.longest_streak} days`;
+    document.getElementById('i-total').textContent = nf0.format(streak.total_gym_days);
+    document.getElementById('i-last').textContent = streak.last_gym_date ? fmtLong(streak.last_gym_date) : '—';
+
+    // This week
+    document.getElementById('i-week-range').textContent = `${fmtLong(weekly.week_start)} – ${fmtLong(weekly.week_end)}`;
+    document.getElementById('i-week-msg').textContent = weekly.motivation_message;
+    const score = weekly.performance_score;
+    const [cls, word, icon] = score >= 80 ? ['good', 'Great', '●'] : score >= 60 ? ['warn', 'Good', '▲'] : ['serious', 'Needs work', '▼'];
+    document.getElementById('i-score-label').textContent = `${icon} ${score} / 100 · ${word}`;
+    const bar = document.getElementById('i-score-bar');
+    bar.parentElement.className = `meter ${cls}`;
+    bar.style.width = `${score}%`;
+
+    // Month
+    document.getElementById('i-month-title').textContent = insightMonth === monthOf(today) ? 'This month' : fmtMonth(insightMonth);
+    document.getElementById('i-month-sub').textContent = `${fmtMonth(insightMonth)} · ${monthly.days_logged} days logged`;
+    document.getElementById('i-month-msg').textContent = monthly.days_logged ? monthly.motivation_message : 'Nothing logged this month.';
+    const signed = (v, unit) => v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${nf1.format(Math.abs(v))} ${unit}`;
+    document.getElementById('i-month-stats').innerHTML = [
+      ['Gym days', `${monthly.gym_days} (${nf0.format(monthly.gym_attendance_pct)}%)`],
+      ['Best streak', `${monthly.best_gym_streak} days`],
+      ['Weight change', signed(monthly.weight_change_kg, 'kg')],
+      ['Waist change', signed(monthly.waist_change_cm, 'cm')],
+      ['Avg calories', monthly.days_logged ? `${nf0.format(monthly.avg_daily_calories)} kcal` : '—'],
+    ].map(([l, v]) => `<div><div class="label">${l}</div><div class="value">${v}</div></div>`).join('');
+
+    // Achievements
+    const medals = ['🥇', '🥈', '🥉', '⭐', '✨'];
+    document.getElementById('i-highlights').innerHTML = monthly.highlights.length
+      ? monthly.highlights.map((h, i) => `<li><span>${medals[i] ?? '⭐'}</span><span>${esc(h)}</span></li>`).join('')
+      : '<li><span>🗓️</span><span class="dim">No highlights yet for this month.</span></li>';
+
+    // Weekly breakdown (same targets as the app, plus watch data when available)
+    const watchSleep = avg(weekWatch.map(w => w.sleep_minutes == null ? null : w.sleep_minutes / 60));
+    const sleep = weekly.avg_sleep_hours ?? watchSleep;
+    const steps = avg(weekWatch.map(w => w.steps));
+    const logged = weekly.days_logged || 0;
+    document.getElementById('i-breakdown').innerHTML = [
+      meter('Gym', `${weekly.gym_days}/${logged} days`, logged ? weekly.gym_days / logged : 0),
+      meter('Calories', `${nf0.format(weekly.avg_daily_calories)} avg / 2,500`, weekly.avg_daily_calories / 2500),
+      sleep != null ? meter('Sleep', `${hm(sleep)} avg / 8h`, sleep / 8) : '',
+      steps != null ? meter('Steps', `${nf0.format(steps)} avg / 10,000`, steps / 10000) : '',
+      weekly.avg_water_litres != null ? meter('Hydration', `${nf1.format(weekly.avg_water_litres)} L avg / 3 L`, weekly.avg_water_litres / 3) : '',
+    ].join('');
+
+    status.textContent = `Updated ${new Date().toLocaleTimeString('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit' })}`;
+  } catch (err) {
+    status.className = 'status err';
+    status.textContent = `Couldn't reach the GymTracker server (${err.message}). Is the VPN connected?`;
+  }
+}
+document.getElementById('m-prev').addEventListener('click', () => { insightMonth = shiftMonth(insightMonth, -1); loadInsights(); });
+document.getElementById('m-next').addEventListener('click', () => { insightMonth = shiftMonth(insightMonth, 1); loadInsights(); });
+
+// ── AI Coach (same /ai/chat endpoint as the app) ─────────────────────────────
+const SUGGESTIONS = [
+  'How did I do this week? 📊',
+  "What's my current streak? 🔥",
+  'How has my weight changed? ⚖️',
+  'How many calories on average? 🍽️',
+  'How am I sleeping lately? 😴',
+  'Am I improving this month? 📈',
+  'What should I focus on? 🎯',
+  "How's my gym attendance? 💪",
+];
+const WELCOME = { role: 'bot', text: "Hey! 👋 I'm your GymTracker AI coach. I can see your daily logs and your Galaxy Watch data. Ask me anything — weight trends, calories, sleep, steps, gym streaks, or just how you're doing overall!" };
+
+let chat = (() => {
+  try { const c = JSON.parse(store.get('chat') || 'null'); return Array.isArray(c) && c.length ? c : [WELCOME]; }
+  catch { return [WELCOME]; }
+})();
+let thinking = false;
+
+/** Minimal, escaped markdown: paragraphs, **bold**, bullet and numbered lists. */
+function md(text) {
+  const out = [];
+  let list = null;
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of String(text).split('\n')) {
+    const line = raw.trim();
+    const bullet = line.match(/^[-*•]\s+(.*)/), num = line.match(/^\d+[.)]\s+(.*)/);
+    if (bullet || num) {
+      const tag = bullet ? 'ul' : 'ol';
+      if (list !== tag) { close(); out.push(`<${tag}>`); list = tag; }
+      out.push(`<li>${inline((bullet || num)[1])}</li>`);
+    } else if (!line) {
+      close();
+    } else {
+      close();
+      out.push(`<p>${inline(line)}</p>`);
+    }
+  }
+  close();
+  return out.join('');
+}
+
+function renderChat() {
+  const box = document.getElementById('messages');
+  box.innerHTML = chat.map(m =>
+    `<div class="msg ${m.role}${m.error ? ' err' : ''}">${m.role === 'user' ? `<p>${esc(m.text)}</p>` : md(m.text)}` +
+    (m.time ? `<span class="time">${esc(m.time)}</span>` : '') + '</div>'
+  ).join('') + (thinking ? '<div class="thinking">Coach is thinking…</div>' : '');
+  box.scrollTop = box.scrollHeight;
+  document.getElementById('suggestions').innerHTML = chat.length <= 1 && !thinking
+    ? SUGGESTIONS.map(s => `<button type="button">${esc(s)}</button>`).join('') : '';
+  document.getElementById('send').disabled = thinking;
+  store.set('chat', JSON.stringify(chat.filter(m => !m.error).slice(-50)));
+}
+
+async function ask(question) {
+  question = question.trim();
+  if (!question || thinking) return;
+  const time = () => new Date().toLocaleTimeString('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  chat.push({ role: 'user', text: question, time: time() });
+  thinking = true;
+  renderChat();
+  try {
+    const res = await fetch(BASE + '/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, date: todayStr() }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || `Server returned ${res.status}`);
+    chat.push({ role: 'bot', text: body.answer || 'No response received.', time: time() });
+  } catch (err) {
+    chat.push({ role: 'bot', error: true, text: `Couldn't get an answer: ${err.message}. Is the VPN connected?` });
+  }
+  thinking = false;
+  renderChat();
+}
+
+const questionEl = document.getElementById('question');
+document.getElementById('composer').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = questionEl.value;
+  questionEl.value = '';
+  questionEl.style.height = '';
+  ask(q);
+});
+questionEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('composer').requestSubmit(); }
+});
+questionEl.addEventListener('input', () => {
+  questionEl.style.height = '';
+  questionEl.style.height = Math.min(questionEl.scrollHeight, 140) + 'px';
+});
+document.getElementById('suggestions').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) ask(b.textContent);
+});
+document.getElementById('chat-clear').addEventListener('click', () => { chat = [WELCOME]; renderChat(); });
+
+// ── Tabs (#dashboard / #insights / #coach) ──────────────────────────────────
+const VIEWS = ['dashboard', 'insights', 'coach'];
+function showView() {
+  const view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
+  for (const v of VIEWS) document.getElementById(`view-${v}`).hidden = v !== view;
+  document.querySelectorAll('#tabs a').forEach(a => a.toggleAttribute('aria-current', a.dataset.view === view));
+  document.querySelectorAll('#tabs a[aria-current]').forEach(a => a.setAttribute('aria-current', 'page'));
+  if (view === 'dashboard' && state.rows.length) requestAnimationFrame(drawAll); // charts need a visible width
+  if (view === 'insights') loadInsights();
+  if (view === 'coach') { renderChat(); questionEl.focus(); }
+}
+addEventListener('hashchange', showView);
+
+load();
+showView();
+setInterval(() => {
+  const view = location.hash.slice(1);
+  if (view === 'insights') loadInsights();
+  else if (view !== 'coach') load();
+}, 5 * 60 * 1000); // keep an open tab fresh
+</script>
+</body>
+</html>
