@@ -18,9 +18,31 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
+class ChatTurn(BaseModel):
+    role: str      # "user" or "assistant"
+    content: str
+
+
 class ChatRequest(BaseModel):
     question: str
     date: Optional[str] = None   # ISO date, defaults to today
+    history: Optional[list[ChatTurn]] = None   # optional; the server also remembers recent turns
+
+
+# ── Conversation memory ───────────────────────────────────────────────────────
+# Single-user app, so the server keeps the last few turns itself. Without this every
+# question was answered in isolation, and the coach repeated its stats instead of
+# responding to what was just said ("you're not understanding me").
+import time as _time
+_MEMORY: list[dict] = []
+_MEMORY_TURNS = 12              # messages kept (6 back-and-forths)
+_MEMORY_IDLE_SECONDS = 3 * 3600  # forget the conversation after 3 h of silence
+_last_chat = 0.0
+
+
+def _remember(role: str, content: str) -> None:
+    _MEMORY.append({"role": role, "content": content})
+    del _MEMORY[:-_MEMORY_TURNS]
 
 
 class ChatResponse(BaseModel):
@@ -289,23 +311,40 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     context = _build_context(db, request.date or str(local_today()))
 
     system_prompt = """You are Coach, {name}'s personal trainer and nutrition coach inside the GymTracker app.
-Think of yourself as a knowledgeable friend who happens to be a great PT: warm, direct,
-a little witty, and genuinely invested in {name}'s progress.
+Think of yourself as a supportive friend who happens to be a great PT: warm, encouraging,
+human, a little witty, and genuinely on {name}'s side. You care about how {name} feels,
+not just the numbers.
+
+Read the conversation first, then decide what kind of reply is needed:
+- If {name} is sharing feelings, frustration or pushback ("you don't understand me",
+  "I'm struggling", "I'm tired"), respond to the feeling first. Acknowledge it in your
+  own words, agree where they have a point, and do NOT re-list their stats. Keep it short
+  and kind, then offer one small, easy next step, or ask what would help.
+- If they ask about their data or progress, answer with their real numbers.
+- Never repeat an analysis you already gave earlier in the conversation.
+
+Coaching style:
+- Building a habit takes time, and starting is the hardest part. Treat any showing up
+  as a real win and say so specifically ("you went twice this month, that's the habit
+  starting").
+- Prefer tiny, realistic steps that stack on routines {name} already has ("after you get
+  home, put your gym bag by the door") over big targets. One change at a time.
+- Frame progress around consistency and identity ("becoming someone who trains"), not
+  perfection. A missed day is normal; the goal is never to miss twice.
+- Be honest about what's off track, but gently, and always pair it with encouragement.
 
 You can see {name}'s real data below: daily logs (calories by meal, weight, waist, gym
 attendance, mood, notes), smart-scale body composition, goal progress, and Galaxy Watch
 data (steps, distance, active calories, sleep, heart rate, workouts). Dates are local time.
 
 How to answer:
-- Lead with the direct answer, backed by {name}'s actual numbers and dates. Compare with
+- For data questions, lead with the direct answer, backed by {name}'s actual numbers and dates. Compare with
   earlier periods and connect the dots when it's useful (e.g. short sleep before skipped
   gym days, calorie averages against the weight trend, steps on rest days).
-- Finish with one to three specific, doable next steps ("add a 20-minute walk after
-  dinner on non-gym days"), never vague advice ("move more").
+- Finish with one or two specific, doable next steps ("add a 10-minute walk after
+  dinner"), never vague advice ("move more"). For emotional messages, one step at most.
 - Match the length to the question: quick facts in a sentence or two; "how am I going",
   plans or analysis can run to about 200 words.
-- Be honest. If something is off track, say so kindly without sugar-coating, and
-  celebrate real wins specifically.
 - Vary your openings and wording. Don't start with "Great question" or repeat the question.
 - If data is missing, say exactly what's missing and how to log it in the app.
 - Scale body-composition numbers are estimates: talk about trends, not single readings.
@@ -326,10 +365,18 @@ USER QUESTION: {request.question}"""
             detail="GROQ_API_KEY is not set. Add it to /opt/backend/.env and recreate the container.",
         )
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user",   "content": user_message},
-    ]
+    # Conversation so far: what the app sent, or what the server remembers
+    global _last_chat
+    if _last_chat and _time.time() - _last_chat > _MEMORY_IDLE_SECONDS:
+        _MEMORY.clear()
+    if request.history:
+        past = [{"role": t.role, "content": t.content} for t in request.history
+                if t.role in ("user", "assistant")][-_MEMORY_TURNS:]
+    else:
+        past = list(_MEMORY)
+
+    messages = [{"role": "system", "content": system_prompt}, *past,
+                {"role": "user", "content": user_message}]
 
     try:
         with httpx.Client(timeout=30.0) as client:
@@ -354,6 +401,9 @@ USER QUESTION: {request.question}"""
         answer = (data["choices"][0]["message"].get("content") or "").strip()
         if not answer:
             answer = "Sorry, I couldn't come up with an answer to that — try asking again."
+        _remember("user", request.question)       # store the question, not the bulky data context
+        _remember("assistant", answer)
+        _last_chat = _time.time()
         return ChatResponse(answer=answer)
 
     except httpx.TimeoutException:
@@ -406,6 +456,13 @@ def _pick_available_model(client: httpx.Client, exclude: str) -> Optional[str]:
         if model != exclude and model in available:
             return model
     return None
+
+
+@router.delete("/chat")
+def reset_chat():
+    """Forget the conversation (call this when the app's chat is cleared)."""
+    _MEMORY.clear()
+    return {"status": "cleared"}
 
 
 @router.get("/model")
