@@ -1104,6 +1104,11 @@ async function ask(question) {
   question = question.trim();
   if (!question || thinking) return;
   const time = () => new Date().toLocaleTimeString('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  // The conversation so far (what's on screen), so the coach can follow it
+  const history = chat
+    .filter(m => !m.error && m.text !== WELCOME.text)
+    .slice(-12)
+    .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
   chat.push({ role: 'user', text: question, time: time() });
   thinking = true;
   renderChat();
@@ -1111,7 +1116,7 @@ async function ask(question) {
     const res = await fetch(BASE + '/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, date: todayStr() }),
+      body: JSON.stringify({ question, date: todayStr(), history }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.detail || `Server returned ${res.status}`);
@@ -1142,7 +1147,11 @@ document.getElementById('suggestions').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (b) ask(b.textContent);
 });
-document.getElementById('chat-clear').addEventListener('click', () => { chat = [WELCOME]; renderChat(); });
+document.getElementById('chat-clear').addEventListener('click', () => {
+  chat = [WELCOME];
+  renderChat();
+  fetch(BASE + '/ai/chat', { method: 'DELETE' }).catch(() => {}); // server forgets it too
+});
 
 // ── Tabs (#dashboard / #insights / #coach) ──────────────────────────────────
 const VIEWS = ['dashboard', 'insights', 'coach'];

@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import date, timedelta
 import httpx
 import json
+import re
 
 from database import get_db
 from models import Entry, WatchData, WorkoutSession
@@ -398,7 +399,7 @@ USER QUESTION: {request.question}"""
             )
 
         data = response.json()
-        answer = (data["choices"][0]["message"].get("content") or "").strip()
+        answer = _strip_thinking(data["choices"][0]["message"].get("content") or "")
         if not answer:
             answer = "Sorry, I couldn't come up with an answer to that — try asking again."
         _remember("user", request.question)       # store the question, not the bulky data context
@@ -424,6 +425,14 @@ _FALLBACK_MODELS = [
 _active_model: Optional[str] = None   # remembered after a successful fallback
 
 
+def _strip_thinking(text: str) -> str:
+    """Remove any <think>…</think> reasoning a model includes in its reply."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+    if "<think>" in text:            # cut off mid-thought: keep only what came before
+        text = text.split("<think>")[0]
+    return text.strip()
+
+
 def _complete(client: httpx.Client, model: str, messages: list) -> httpx.Response:
     body = {
         "model": model,
@@ -436,6 +445,10 @@ def _complete(client: httpx.Client, model: str, messages: list) -> httpx.Respons
         # reasoning plus a ~200-word reply
         body["reasoning_effort"] = "medium"
         body["max_tokens"] = 2048
+    elif model.startswith("qwen/"):
+        # Qwen can think out loud before answering; leave room so the reply
+        # isn't cut off (the thinking is stripped before it reaches the app)
+        body["max_tokens"] = 1500
     return client.post(
         GROQ_API_URL,
         headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},

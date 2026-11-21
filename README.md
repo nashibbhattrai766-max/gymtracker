@@ -86,7 +86,7 @@ A personal fitness app I built and self-host: a **Flutter Android app** for logg
 | `routers/watch.py` | Store and read daily watch data |
 | `routers/workouts.py` | Workout sessions (sets, reps, weights) |
 | `routers/analytics.py` | `/analytics/weekly`, `/monthly`, `/streak` |
-| `routers/ai.py` | `/ai/chat`: builds a compact summary of your recent data and sends it to the LLM; falls back to another model if the preferred one is unavailable |
+| `routers/ai.py` | `/ai/chat`: builds a compact summary of your recent data and sends it to the LLM along with the conversation so far; empathy-first coaching prompt; strips `<think>` text from reasoning models (e.g. Qwen); falls back to another model if the preferred one is unavailable. `DELETE /ai/chat` resets the conversation |
 | `routers/food.py` | `/ai/food-photo`: image → calories + protein estimate |
 | `static/dashboard.html` | Single-file web dashboard: plain SVG charts, no external libraries, light/dark theme |
 | `config.py` | All settings from environment variables (API key, model names, profile, time zone) |
@@ -103,7 +103,16 @@ Flutter (Dart), Android 16, built for a Samsung Galaxy phone + Galaxy Watch.
 - **Reminders:** a small **native Kotlin AlarmManager** scheduler called through a MethodChannel (`setAndAllowWhileIdle`, no exact-alarm permission). The Galaxy Watch mirrors the notifications automatically.
 - **Nightly sync at 23:00:** pulls the day's watch data and saves it; also re-saves the previous day so late steps count; retries every 30 min if the VPN is off; fills any missing days from the past week on app start.
 
-> The app source isn't in this repo yet.
+Source: [`flutter_app/`](flutter_app/), with native Android code in `android/app/src/main/kotlin/`:
+
+| Native file | Purpose |
+|---|---|
+| `HealthReader.kt` | Reads one local day of Health Connect data |
+| `WatchSyncWorker.kt` | Background job for the nightly watch sync |
+| `Reminders.kt` | AlarmManager reminders (water, gym, daily log) |
+| `VitafitScale.kt` | Bluetooth smart-scale weigh-in |
+
+Build: install Flutter, set your server address in `lib/config/api_config.dart` (or later in the app under Home → Server), then `flutter build apk --release`. Tests: `flutter test`. More detail in [`deploy/apk_build.md`](deploy/apk_build.md) and [`docs/`](docs/).
 
 ## 5. Deploy the backend on Proxmox
 
@@ -137,6 +146,7 @@ Updating later: copy the changed files into `/opt/backend` and run `./deploy.sh`
 | Database "disappeared" after a rebuild | The code and Dockerfile used different SQLite paths. Now one path (`/data`) comes from `DATABASE_URL`, and the host folder is bind-mounted (a directory mount, not a single-file mount) |
 | "Today" was wrong in the evening | The container clock is UTC. All dates are computed in the configured local time zone |
 | The `groq` Python SDK conflicted with `httpx` | Call the Groq REST API directly with `httpx` |
+| The coach ignored what was just said and repeated its stats | Each question was sent on its own. The app and web dashboard now send the visible chat as history (the server also remembers recent turns), and the prompt makes it respond to feelings first |
 | A Groq model was retired | `/ai/chat` asks Groq which models the key can use and falls back automatically |
 | Sleep showed on the wrong day | Sleep is stored against the day it **ended** |
 
@@ -149,7 +159,6 @@ Updating later: copy the changed files into `/opt/backend` and run `./deploy.sh`
 ## 9. Roadmap
 
 - Login / API token before ever exposing it beyond the VPN
-- Publish the Flutter app source
 - Automatic scale sync through Health Connect
 
 ## License

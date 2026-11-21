@@ -1,0 +1,45 @@
+name: gymtracker
+description: Personal gym & nutrition tracker
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  provider: ^6.1.2
+
+  # HTTP
+  http: ^1.2.1
+
+  # Local storage (offline cache)
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+  # Charts
+  fl_chart: ^0.68.0
+
+  # Date/time
+  intl: ^0.19.0
+
+  # Shared preferences (for settings like backend URL)
+  shared_preferences: ^2.3.1
+
+  # UI extras
+  flutter_animate: ^4.5.0
+  percent_indicator: ^4.2.4
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  sqflite_common_ffi: ^2.4.3
+
+flutter:
+  uses-material-design: true
